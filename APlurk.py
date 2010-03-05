@@ -6,7 +6,7 @@ plurk_password = 'lol'
 path = u"C:\\data\python\\"
 
 #Background
-if os_version()[0]!=5:
+if sysinfo.os_version()[0]!=5:
 	appuifw.app.screen='large' #Screen size(large)
 	img=Image.new((240,320)) #background
 	bgimage=Image.open(path+"test.jpg") #Image path should be like C:\\data\Images\\test.jpg
