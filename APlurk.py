@@ -1,12 +1,14 @@
 ﻿from graphics import *
-import urllib, urllib2, cookielib, e32, appuifw, e32dbm, sysinfo
+import urllib, urllib2, cookielib, e32, appuifw, e32dbm, sysinfo, os
 
 plurk_login = u'Plurk User'
 plurk_password = 'lol'
 path = u"C:\\data\python\\"
+limg = None
+limg_path = u''
 
 #Background
-if sysinfo.os_version()[0]!=5:
+if not appuifw.touch_enabled():
 	appuifw.app.screen='large' #Screen size(large)
 	img=Image.new((240,320)) #background
 	bgimage=Image.open(path+"test.jpg") #Image path should be like C:\\data\Images\\test.jpg
@@ -79,6 +81,28 @@ def post_to_plurk(pmessage):
 	except urllib2.URLError:
 		appuifw.note(u"Posting Error", "error")
 
+def add_pic_filesystem():
+	global limg, limg_path
+	if e32.in_emulator():
+		imagedir = u'c:\\images'
+	else:
+		imagedir = u'e:\\images'
+	
+	images = list()
+	files = map(unicode, os.listdir(imagedir))
+	# save only images
+	for x in files:
+		if os.path.splitext(x)[1] in ('.jpg', '.png', '.gif'):
+			images.append(x)
+	
+	index = appuifw.selection_list(images)
+	limg = Image.open(imagedir + '\\' + images[index])
+	limg_path = imagedir + '\\' + images[index]
+	# Display image in the middle of screen
+	canvas.blit(limg, target = ((canvas.size[0] - limg.size[0])/2, (canvas.size[1] - limg.size[1])/2))
+
+def add_pic_photocamera():
+	pass
 
 read()
 if plurk_password == 'lol':
@@ -87,6 +111,10 @@ if plurk_password == 'lol':
 		
 #Menu list
 appuifw.app.menu = [(u"Plurk!", send_message),
+					(u'Add picture',
+						((u'From Gallery', add_pic_filesystem),
+						(u'With your camera', add_pic_photocamera))
+					),
 					(u"Settings", settings),
 					(u"About", about),
 					(u"Quit", quit)]
