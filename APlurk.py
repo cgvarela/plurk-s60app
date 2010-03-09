@@ -1,22 +1,29 @@
 ﻿from graphics import *
-import urllib, urllib2, cookielib, e32, appuifw, e32dbm, sysinfo, os
+from socket import *
+import urllib, urllib2, cookielib, e32, appuifw, e32dbm, os
 
 plurk_login = u'Plurk User'
-plurk_password = 'lol'
+plurk_password = 'None'
 path = u"C:\\data\python\\"
 limg = None
 limg_path = u''
 
+
+#Main Part
+
 #Background
 if not appuifw.touch_enabled():
-	appuifw.app.screen='large' #Screen size(large)
+	appuifw.app.screen='normal' #Screen size(large)
 	img=Image.new((240,320)) #background
-	bgimage=Image.open(path+"test.jpg") #Image path should be like C:\\data\Images\\test.jpg
+	bgimage=Image.open(path+"test.png") #Image path should be like C:\\data\Images\\test.jpg
+	appuifw.app.title=u'Plurk App'
 else:
 	appuifw.app.directional_pad = False
 	appuifw.app.screen='normal' #Screen size(normal)
 	img=Image.new((360,640)) #background
 	bgimage=Image.open(path+"test_b.jpg") #Image path should be like C:\\data\Images\\test.jpg
+	appuifw.app.title=u'Plurk App'
+
 
 def handle_redraw(rect):
 	canvas.blit(bgimage) #Drawing background
@@ -29,12 +36,12 @@ def write():  #define the write function to write in a database
 	db = e32dbm.open(path+"settings.db","c") #open the file
 	db[u"login"] = plurk_login
 	db[u"password"] = plurk_password
-	db[u"start_key"] = '0' #after first start = 0
 	db.close()
+
 
 def read():  #define a read function to read a database
 	global plurk_login, plurk_password
-	db = e32dbm.open(path+"settings.db","r") #open a file
+	db = e32dbm.open(path+"settings.db","c") #open a file
 	plurk_login = db[u"login"]  #read it using the dictionary concept. 
 	plurk_password = db[u"password"]
 	db.close()
@@ -95,7 +102,7 @@ def add_pic_filesystem():
 		if os.path.splitext(x)[1] in ('.jpg', '.png', '.gif'):
 			images.append(x)
 	
-	index = appuifw.selection_list(images)
+	index = appuifw.popup_menu(images)#selection_list(images)
 	limg = Image.open(imagedir + '\\' + images[index])
 	limg_path = imagedir + '\\' + images[index]
 	# Display image in the middle of screen
@@ -104,8 +111,26 @@ def add_pic_filesystem():
 def add_pic_photocamera():
 	pass
 
-read()
-if plurk_password == 'lol':
+def select_access_point():
+	import btsocket
+	
+	pnts = []
+	points = btsocket.access_points()
+	for i in points:
+		pnts.append(i['name'])
+	
+	index = appuifw.popup_menu(pnts, u'Select default access point:')
+	if index is not None:
+		set_default_access_point(pnts[index])
+		return 1;
+
+while select_access_point()!=1:
+	select_access_point()
+
+
+if os.path.exists(path+"settings.db.e32dbm"):
+	read()
+else:
 	settings()
 
 		
