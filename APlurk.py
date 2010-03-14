@@ -1,8 +1,9 @@
 ﻿from graphics import *
-import e32, appuifw, e32dbm, os
+import e32, appuifw, os
 
 plurk_login = u'Plurk User'
 plurk_password = 'None'
+
 limg = None
 limg_path = u''
 
@@ -15,7 +16,7 @@ if not appuifw.touch_enabled():
 else:
 	path = u"e:\\data\python\\"
 	appuifw.app.directional_pad = False
-	appuifw.app.screen = 'normal' #Screen size(normal)
+	appuifw.app.screen = scrsize #Screen size(normal)
 	bgimage = Image.open(path + "test_b.jpg") #Image path should be like C:\\data\Images\\test.jpg
 	appuifw.app.title = u'Plurk App'
 
@@ -28,9 +29,9 @@ def handle_redraw(rect = None):
 
 canvas = appuifw.Canvas(event_callback = None, redraw_callback = handle_redraw)
 appuifw.app.body = canvas
-
 #Work with file
 def write():  #define the write function to write in a database
+	import e32dbm
 	global plurk_login, plurk_password
 	if plurk_login and plurk_password is not None:
 		db = e32dbm.open(path+"settings.db","c") #open the file
@@ -41,14 +42,14 @@ def write():  #define the write function to write in a database
 	
 	return False
 
-
 def read():  #define a read function to read a database
+	import e32dbm
 	global plurk_login, plurk_password
 	db = e32dbm.open(path+"settings.db","c") #open a file
 	plurk_login = db[u"login"]  #read it using the dictionary concept. 
 	plurk_password = db[u"password"]
 	db.close()
-	
+
 #Menu functions
 def send_message():
 	pmessage = appuifw.query(u"Type message to plurk:", "text")
@@ -56,13 +57,32 @@ def send_message():
 
 def settings():
 	global plurk_login, plurk_password
-	plurk_login = appuifw.query(u"Enter login:", "text", unicode(plurk_login));
-	plurk_password = appuifw.query(u"Enter password:", "code");
-	
-	if write():
+	#scrsizelist = [u"normal", u"large", u"full"]
+	settings_fields = [(u"Login", 'text', unicode(plurk_login)),
+					   (u"Password", 'text' , u"****")]#,
+					   #(u"Screen size", 'combo', (scrsizelist, 0))]
+	def save(arg):
+		global saved
+		saved = True
 		appuifw.note(u"Saved!", "conf")
+		return True
+	
+	#Create an instance of Form
+	settings_form = appuifw.Form(settings_fields, flags=appuifw.FFormDoubleSpaced)
+	
+	#Assign the save function
+	settings_form.save_hook = save
+	
+	#Execute the form
+	settings_form.execute()
+	
+	#After the form is saved and closed, display the information
+	if settings_form[1][2] == u"****":
+		pass
 	else:
-		appuifw.note(u"Nothing to save.", "info")
+		plurk_login = settings_form[0][2]
+		plurk_password = settings_form[1][2]
+		#appuifw.note(u"Saved!", "conf")
 
 def about():
 	appuifw.query(u"Created by \nItex & xolvo", "query")
@@ -77,11 +97,7 @@ def post_to_plurk():
 	global plurk_login, plurk_password
 	plurk_api_key = '5cZQnLGHJMmPRYsADiOq1x1wMuSkmocE'
 	get_api_url = lambda x: 'http://www.plurk.com/API%s' % x
-	
-	from sys import path as sysPath
-	sysPath.append(path + 'lib') # special fix to import local modules
-	import FileUploader, simplejson
-	
+	import FileUploader
 	global plurk_login, plurk_password
 	
 	cookies = cookielib.CookieJar()
@@ -98,6 +114,9 @@ def post_to_plurk():
 		appuifw.note(u"Logon error", "error")
 	
 	if limg is not None:
+		import simplejson
+		from sys import path as sysPath
+		sysPath.append(path + 'lib') # special fix to import local modules
 		try:
 			fp = opener.open(get_api_url('/Timeline/uploadPicture'),
 								{'api_key' : plurk_api_key,
@@ -108,14 +127,15 @@ def post_to_plurk():
 			
 		jsonobj = simplejson.loads(fp.read()) # Parse json to the dictionary object
 	
-	try: plText = ' '.join([jsonobj['thumbnail'], plurk_text])
+	try: plText = ' '.join([jsonobj['full'], plurk_text])
 	except NameError: plText = plurk_text
 	
 	try:
 		fp = opener.open(get_api_url('/Timeline/plurkAdd'),
 							{'content': plText.encode('utf-8'),
 							'qualifier': qualifier if qualifier is not u'' else u':',
-							'api_key': plurk_api_key})
+							'api_key': plurk_api_key,
+							"lang": "ru" })
 		appuifw.note(u"Posted!", "conf")
 	except urllib2.HTTPError, e:
 		print e.read()
@@ -149,7 +169,7 @@ def add_pic_filesystem():
 	canvas.end_redraw()
 	
 	# Display image in the middle of screen
-	# canvas.blit(limg, target = ((canvas.size[0] - limg.size[0])/2, (canvas.size[1] - limg.size[1])/2))
+	canvas.blit(limg, target = ((canvas.size[0] - limg.size[0])/2, (canvas.size[1] - limg.size[1])/2))
 	
 def add_pic_photocamera():
 	pass
