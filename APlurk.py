@@ -1,23 +1,26 @@
 ﻿from graphics import *
-import e32, appuifw, os
-
+import e32, appuifw, os, key_codes, time
 plurk_login = u'Plurk User'
 plurk_password = 'None'
 
 limg = None
 limg_path = u''
+touch=False
+
+if appuifw.touch_enabled():
+	touch=True
 
 #Background
-if not appuifw.touch_enabled():
+if touch==False:
 	path = u"c:\\data\python\\"
 	appuifw.app.screen = 'normal' #Screen size(large)
-	bgimage = Image.open(path + "test.jpg") #Image path should be like C:\\data\Images\\test.jpg
+	bgimage = Image.open(path + "bg.png") #Image path should be like C:\\data\Images\\test.jpg
 	appuifw.app.title = u'Plurk App'
 else:
 	path = u"e:\\data\python\\"
 	appuifw.app.directional_pad = False
-	appuifw.app.screen = scrsize #Screen size(normal)
-	bgimage = Image.open(path + "test_b.jpg") #Image path should be like C:\\data\Images\\test.jpg
+	appuifw.app.screen = 'normal' #Screen size(normal)
+	bgimage = Image.open(path + "bg_b.jpg") #Image path should be like C:\\data\Images\\test.jpg
 	appuifw.app.title = u'Plurk App'
 
 def handle_redraw(rect = None):
@@ -25,10 +28,11 @@ def handle_redraw(rect = None):
 	ex. (0, 0, 360, 487) '''
 	canvas.blit(bgimage)
 	if limg is not None:
-		canvas.blit(limg, target = ((canvas.size[0] - limg.size[0])/2, (canvas.size[1] - limg.size[1])/2))
+		canvas.blit(limg, target = (26, 26))
 
 canvas = appuifw.Canvas(event_callback = None, redraw_callback = handle_redraw)
 appuifw.app.body = canvas
+
 #Work with file
 def write():  #define the write function to write in a database
 	import e32dbm
@@ -57,7 +61,6 @@ def send_message():
 
 def settings():
 	global plurk_login, plurk_password
-	#scrsizelist = [u"normal", u"large", u"full"]
 	settings_fields = [(u"Login", 'text', unicode(plurk_login)),
 					   (u"Password", 'text' , u"****")]#,
 					   #(u"Screen size", 'combo', (scrsizelist, 0))]
@@ -93,7 +96,7 @@ def quit():
 
 def post_to_plurk():
 	import urllib2, cookielib
-	
+	print limg_path
 	global plurk_login, plurk_password
 	plurk_api_key = '5cZQnLGHJMmPRYsADiOq1x1wMuSkmocE'
 	get_api_url = lambda x: 'http://www.plurk.com/API%s' % x
@@ -144,7 +147,7 @@ def post_to_plurk():
 def add_pic_filesystem():
 	global limg, limg_path
 	if e32.in_emulator():
-		imagedir = u'c:\\images'
+		imagedir = u'c:\\data\\images'
 	else:
 		imagedir = u'e:\\images'
 	
@@ -161,18 +164,18 @@ def add_pic_filesystem():
 	
 	# Resize image
 	if limg.size[0] > 360:
-		limg = limg.resize((240, 400), callback = None, keepaspect = 1)
-	
+		if touch==False:
+			limg = limg.resize((188, 143), callback = None, keepaspect = 1)
+		else:
+			limg = limg.resize((310, 233), callback = None, keepaspect = 1)
 	# Optimize UI redraw
 	canvas.begin_redraw()
 	handle_redraw()
 	canvas.end_redraw()
 	
 	# Display image in the middle of screen
-	canvas.blit(limg, target = ((canvas.size[0] - limg.size[0])/2, (canvas.size[1] - limg.size[1])/2))
+	canvas.blit(limg, target = (26,26))
 	
-def add_pic_photocamera():
-	pass
 
 ''' Text field start functions '''
 txt = appuifw.Text()
@@ -244,7 +247,71 @@ if os.path.exists(path+"settings.db.e32dbm"):
 	read()
 else:
 	settings()
+
+#camera
+images_dir="c:\\" 
+cammenu = []
+
+
+def add_pic_photocamera():
+	import  camera
+	global menu_list, limg
+	global limg_path
+	def vf(im):
+		#canvas.begin_redraw()
+		canvas.blit(im)
 		
+		#canvas.end_redraw()
+	def save_picture(pict):
+		global images_dir, limg_path, limg
+		day=str(time.localtime()[2])
+		mon=str(time.localtime()[1])
+		i=1
+		if day<10:
+			day='0'+day
+		if mon<10:
+			mon='0'+mon
+		if os.path.exists(images_dir+day+mon+str(time.localtime()[0])+'.jpg'):
+			while os.path.exists(images_dir+day+mon+str(time.localtime()[0])+'('+str(i)+')''.jpg'):
+				i=i+1
+			else:
+				filename=day+mon+str(time.localtime()[0])+'('+str(i)+')''.jpg'
+		else:
+			filename=day+mon+str(time.localtime()[0])+'.jpg'
+		pict.save(images_dir+filename, quality=90)
+		appuifw.app.menu = menu_list
+		handle_redraw((0, 0, canvas.size[0], canvas.size[1]))
+		limg = Image.open(images_dir+filename)
+		limg = limg.resize((188, 143), callback = None, keepaspect = 1)
+		canvas.blit(limg, target = (26, 26))
+		limg_path=images_dir+filename
+	def take_picture():
+		global menu_list
+		pic = camera.take_photo(size = (640,480)) 
+		save_picture(pic)
+
+		
+	def set_camera_menu():
+		global cammenu
+		cammenu = [(u'Take picture',take_picture),(u'Exit', camquit)]
+		appuifw.app.menu = cammenu
+	def camquit():
+		camera.stop_finder()
+		camera.release()
+		app_lock.signal()
+		quit()
+	#app_lock = e32.Ao_lock()
+	appuifw.app.exit_key_handler = camquit
+	#appuifw.app.body = appuifw.Canvas()
+	camera.start_finder(vf, size=(320,240))
+	canvas.bind(key_codes.EKeySelect, take_picture)
+	set_camera_menu()
+
+
+
+
+
+
 #Menu list
 menu_list = [
 				(u"Plurk!", post_to_plurk),
