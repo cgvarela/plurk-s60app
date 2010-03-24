@@ -1,17 +1,27 @@
 ﻿from graphics import *
 import e32, appuifw, os, key_codes, time
+from e32dbm import open as db_open
+
+from urllib2 import build_opener, HTTPError, HTTPCookieProcessor
+from cookielib import CookieJar
+
+# These strings do not influence or on the app cold boot
+# either on the plurk posting.
+from sys import path as sysPath
+sysPath.append('e:\\data\python\\lib')
+import FileUploader, simplejson
+
 plurk_login = u'Plurk User'
 plurk_password = 'None'
 
 limg = None
 limg_path = u''
-touch=False
-
-if appuifw.touch_enabled():
-	touch=True
+touch = True if appuifw.touch_enabled() else False # Increase code efficiency
 
 #Background
-if touch==False:
+# path = os.getcwd() + '\\'
+# drive_letter = os.getcwd().split("\\")[0]
+if not touch:
 	path = u"c:\\data\python\\"
 	appuifw.app.screen = 'normal' #Screen size(large)
 	bgimage = Image.open(path + "bg.png") #Image path should be like C:\\data\Images\\test.jpg
@@ -28,17 +38,21 @@ def handle_redraw(rect = None):
 	ex. (0, 0, 360, 487) '''
 	canvas.blit(bgimage)
 	if limg is not None:
-		canvas.blit(limg, target = (26, 26))
+		if not touch:
+			canvas.blit(limg, target = (26, 26))
+		else:
+			canvas.blit(limg, target = (20, 22))
 
 canvas = appuifw.Canvas(event_callback = None, redraw_callback = handle_redraw)
 appuifw.app.body = canvas
 
 #Work with file
 def write():  #define the write function to write in a database
-	import e32dbm
+	# import e32dbm
+	# from e32dbm import open as db_open
 	global plurk_login, plurk_password
 	if plurk_login and plurk_password is not None:
-		db = e32dbm.open(path+"settings.db","c") #open the file
+		db = db_open(path+"settings.db","c") #open the file
 		db[u"login"] = plurk_login
 		db[u"password"] = plurk_password
 		db.close()
@@ -47,23 +61,24 @@ def write():  #define the write function to write in a database
 	return False
 
 def read():  #define a read function to read a database
-	import e32dbm
+	# import e32dbm
+	# from e32dbm import open as db_open
 	global plurk_login, plurk_password
-	db = e32dbm.open(path+"settings.db","c") #open a file
+	db = db_open(path+"settings.db","c") #open a file
 	plurk_login = db[u"login"]  #read it using the dictionary concept. 
 	plurk_password = db[u"password"]
 	db.close()
 
 #Menu functions
 def send_message():
+	global plurk_text
 	pmessage = appuifw.query(u"Type message to plurk:", "text")
-	post_to_plurk(pmessage);
+	plurk_text = pmessage if pmessage is not None else ''
 
 def settings():
 	global plurk_login, plurk_password
 	settings_fields = [(u"Login", 'text', unicode(plurk_login)),
-					   (u"Password", 'text' , u"****")]#,
-					   #(u"Screen size", 'combo', (scrsizelist, 0))]
+					   (u"Password", 'text' , u"****")]
 	def save(arg):
 		global saved
 		saved = True
@@ -95,16 +110,23 @@ def quit():
 	write()
 
 def post_to_plurk():
-	import urllib2, cookielib
-	print limg_path
+	# import urllib2
+	'''from urllib2 import build_opener
+	from urllib2 import HTTPError
+	from urllib2 import HTTPCookieProcessor
+	from cookielib import CookieJar'''
+	
+	# Not needed in the sis package
+	'''from sys import path as sysPath
+	sysPath.append(path + 'lib')
+	import FileUploader, simplejson'''
+	
 	global plurk_login, plurk_password
 	plurk_api_key = '5cZQnLGHJMmPRYsADiOq1x1wMuSkmocE'
 	get_api_url = lambda x: 'http://www.plurk.com/API%s' % x
-	import FileUploader
-	global plurk_login, plurk_password
 	
-	cookies = cookielib.CookieJar()
-	opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookies), FileUploader.MultipartPostHandler)
+	cookies = CookieJar()
+	opener = build_opener(HTTPCookieProcessor(cookies), FileUploader.MultipartPostHandler)
 	
 	try:
 		fp = opener.open(get_api_url('/Users/login'),
@@ -112,19 +134,16 @@ def post_to_plurk():
 							'password': plurk_password,
 							'api_key': plurk_api_key})
 		fp.read()
-	except urllib2.HTTPError, e:
+	except HTTPError, e:
 		print e.read()
 		appuifw.note(u"Logon error", "error")
 	
 	if limg is not None:
-		import simplejson
-		from sys import path as sysPath
-		sysPath.append(path + 'lib') # special fix to import local modules
 		try:
 			fp = opener.open(get_api_url('/Timeline/uploadPicture'),
 								{'api_key' : plurk_api_key,
 								'image' : open(limg_path, "rb")})
-		except urllib2.HTTPError, e:
+		except HTTPError, e:
 			print e.read()
 			appuifw.note(u"Pic post error", "error")
 			
@@ -140,7 +159,7 @@ def post_to_plurk():
 							'api_key': plurk_api_key,
 							"lang": "ru" })
 		appuifw.note(u"Posted!", "conf")
-	except urllib2.HTTPError, e:
+	except HTTPError, e:
 		print e.read()
 		appuifw.note(u"Plurk with pic posting error", "error")
 
@@ -159,6 +178,9 @@ def add_pic_filesystem():
 			images.append(x)
 	
 	index = appuifw.popup_menu(images)
+	if index is None:
+		return
+	
 	limg = Image.open(imagedir + '\\' + images[index])
 	limg_path = imagedir + '\\' + images[index]
 	
@@ -174,7 +196,8 @@ def add_pic_filesystem():
 	canvas.end_redraw()
 	
 	# Display image in the middle of screen
-	canvas.blit(limg, target = (26,26))
+	if not touch:
+		canvas.blit(limg, target = (26,26))
 	
 
 ''' Text field start functions '''
@@ -235,8 +258,11 @@ def select_access_point():
 	
 	index = appuifw.popup_menu(pnts, u'Select default access point:')
 	if index is not None:
-		socket.set_default_access_point(pnts[index])
-		return True;
+		try:
+			socket.set_default_access_point(pnts[index])
+			return True
+		except:
+			pass
 	
 	return False
 
@@ -249,21 +275,23 @@ else:
 	settings()
 
 #camera
-images_dir="c:\\" 
-cammenu = []
-
-
+images_dir="e:\\" 
 def add_pic_photocamera():
 	import  camera
-	global menu_list, limg
-	global limg_path
+	
 	def vf(im):
-		#canvas.begin_redraw()
-		canvas.blit(im)
-		
-		#canvas.end_redraw()
+		if not touch:
+			canvas.blit(im, target = (26, 26))
+		else:
+			canvas.begin_redraw()
+			
+			canvas.blit(bgimage)
+			canvas.blit(im, target = (20, 22))
+			
+			canvas.end_redraw()
 	def save_picture(pict):
-		global images_dir, limg_path, limg
+		global limg, limg_path
+		
 		day=str(time.localtime()[2])
 		mon=str(time.localtime()[1])
 		i=1
@@ -279,38 +307,34 @@ def add_pic_photocamera():
 		else:
 			filename=day+mon+str(time.localtime()[0])+'.jpg'
 		pict.save(images_dir+filename, quality=90)
-		appuifw.app.menu = menu_list
-		handle_redraw((0, 0, canvas.size[0], canvas.size[1]))
-		limg = Image.open(images_dir+filename)
-		limg = limg.resize((188, 143), callback = None, keepaspect = 1)
-		canvas.blit(limg, target = (26, 26))
-		limg_path=images_dir+filename
-	def take_picture():
-		global menu_list
-		pic = camera.take_photo(size = (640,480)) 
-		save_picture(pic)
-
 		
-	def set_camera_menu():
-		global cammenu
-		cammenu = [(u'Take picture',take_picture),(u'Exit', camquit)]
-		appuifw.app.menu = cammenu
-	def camquit():
+		camquit()
+		
+		limg = Image.open(images_dir+filename)		
+		if canvas.size[0] == 360:
+			limg = limg.resize((320, 240), callback = None, keepaspect = 1)
+			canvas.blit(limg, target = (20, 22))
+		else:
+			limg = limg.resize((188, 143), callback = None, keepaspect = 1)
+			canvas.blit(limg, target = (26, 26))
+		
+		limg_path=images_dir+filename
+	def take_picture(pos = (0, 0)): # For touch events support
+		pic = camera.take_photo(size = (640, 480)) 
+		save_picture(pic)
+	def camquit():		
 		camera.stop_finder()
 		camera.release()
-		app_lock.signal()
-		quit()
-	#app_lock = e32.Ao_lock()
-	appuifw.app.exit_key_handler = camquit
-	#appuifw.app.body = appuifw.Canvas()
-	camera.start_finder(vf, size=(320,240))
+		# get main menu back
+		appuifw.app.menu = menu_list
+		# clean all bindings
+		canvas.bind(key_codes.EKeySelect, None)
+		canvas.bind(key_codes.EButton1Down, None)
+	
+	camera.start_finder(vf, size=(320, 240))
 	canvas.bind(key_codes.EKeySelect, take_picture)
-	set_camera_menu()
-
-
-
-
-
+	canvas.bind(key_codes.EButton1Down, take_picture) # ignored if there was no touch support
+	appuifw.app.menu = [(u'Take picture', take_picture), (u'Cancel', camquit)]
 
 #Menu list
 menu_list = [
@@ -319,12 +343,12 @@ menu_list = [
 					((u'From Gallery', add_pic_filesystem),
 					(u'With your camera', add_pic_photocamera))
 				),
-				(u'Add text', add_text_new),
+				(u'Add text', add_text_new if touch else send_message),
 				(u"Settings", settings),
 				(u"About", about)
 			]
 appuifw.app.menu = menu_list
 
-appuifw.app.exit_key_handler = quit # exit
-app_lock = e32.Ao_lock()   #Exit
+appuifw.app.exit_key_handler = quit #exit
+app_lock = e32.Ao_lock() #Exit
 app_lock.wait() #prevent the application from closing before the user tells it to
