@@ -64,7 +64,7 @@ def read():  #define a read function to read a database
 	# import e32dbm
 	# from e32dbm import open as db_open
 	global plurk_login, plurk_password
-	db = db_open(path+"settings.db","c") #open a file
+	db = db_open(path+"settings.db","r") #open a file
 	plurk_login = db[u"login"]  #read it using the dictionary concept. 
 	plurk_password = db[u"password"]
 	db.close()
@@ -79,17 +79,8 @@ def settings():
 	global plurk_login, plurk_password
 	settings_fields = [(u"Login", 'text', unicode(plurk_login)),
 					   (u"Password", 'text' , u"****")]
-	def save(arg):
-		global saved
-		saved = True
-		appuifw.note(u"Saved!", "conf")
-		return True
-	
 	#Create an instance of Form
 	settings_form = appuifw.Form(settings_fields, flags=appuifw.FFormDoubleSpaced)
-	
-	#Assign the save function
-	settings_form.save_hook = save
 	
 	#Execute the form
 	settings_form.execute()
@@ -100,14 +91,16 @@ def settings():
 	else:
 		plurk_login = settings_form[0][2]
 		plurk_password = settings_form[1][2]
-		#appuifw.note(u"Saved!", "conf")
+		if os.path.exists(path+"settings.db.e32dbm"):
+			os.remove(path+"settings.db.e32dbm")
+		write()
+		appuifw.note(u"Saved!", "conf")
 
 def about():
 	appuifw.query(u"Created by \nItex & xolvo", "query")
 	
 def quit():
 	app_lock.signal()
-	write()
 
 def post_to_plurk():
 	# import urllib2
@@ -268,14 +261,13 @@ def select_access_point():
 
 while not select_access_point():
 	pass
-
 if os.path.exists(path+"settings.db.e32dbm"):
 	read()
 else:
 	settings()
 
 #camera
-images_dir="e:\\" 
+images_dir="e:\\images\\" 
 def add_pic_photocamera():
 	import  camera
 	
