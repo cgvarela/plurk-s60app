@@ -270,10 +270,10 @@ else:
 images_dir="e:\\images\\" 
 def add_pic_photocamera():
 	import  camera
-	
+	global touch
 	def vf(im):
 		if not touch:
-			canvas.blit(im, target = (26, 26))
+			canvas.blit(im)
 		else:
 			canvas.begin_redraw()
 			
@@ -307,8 +307,10 @@ def add_pic_photocamera():
 			limg = limg.resize((320, 240), callback = None, keepaspect = 1)
 			canvas.blit(limg, target = (20, 22))
 		else:
+			canvas.blit(bgimage)
 			limg = limg.resize((188, 143), callback = None, keepaspect = 1)
 			canvas.blit(limg, target = (26, 26))
+
 		
 		limg_path=images_dir+filename
 	def take_picture(pos = (0, 0)): # For touch events support
