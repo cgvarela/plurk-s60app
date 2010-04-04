@@ -13,6 +13,7 @@ import FileUploader, simplejson
 
 plurk_login = u'Plurk User'
 plurk_password = 'None'
+version = u'0_1_1011'
 
 limg = None
 limg_path = u''
@@ -59,6 +60,7 @@ def write():  #define the write function to write in a database
 		db = db_open(path+"settings.db","c") #open the file
 		db[u"login"] = plurk_login
 		db[u"password"] = plurk_password
+		db[u"version"] = version
 		db.close()
 		return True
 	
@@ -71,8 +73,31 @@ def read():  #define a read function to read a database
 	db = db_open(path+"settings.db","r") #open a file
 	plurk_login = db[u"login"]  #read it using the dictionary concept. 
 	plurk_password = db[u"password"]
+	version = db[u"version"]
 	db.close()
 
+
+def verupdate(): 
+	global version
+	if not st_connected:
+		while not select_access_point():
+			pass
+	import urllib
+	file = "ver.txt"
+	server = "http://plurk-s60app.googlecode.com/svn/trunk/"
+	url= "http://plurk-s60app.googlecode.com/files/plupic_v"
+	update = urllib.urlopen(server + file).read()
+	
+	#Path  of the Python Script file to update 
+	if update==version:
+		appuifw.note(u"You are using the latest version","info")
+	else:
+		data = appuifw.query(u"Update from\nv. " +version+" to\nv. "+update + u" ?" , "query")
+		if data==True:
+			internal_url = url+ update + ".sis"
+			b = 'BrowserNG.exe'
+			e32.start_exe(b, ' "%s"' %internal_url)
+			
 #Menu functions
 def send_message():
 	global plurk_text
@@ -101,7 +126,8 @@ def settings():
 		appuifw.note(u"Saved!", "conf")
 
 def about():
-	appuifw.query(u"Created by \nItex & xolvo", "query")
+	#update()
+	appuifw.query(u"Created by \nItex & xolvo\nv. "+version, "query")
 	
 def quit():
 	app_lock.signal()
@@ -117,7 +143,7 @@ def select_access_point():
 	for i in points:
 		pnts.append(i['name'])
 	
-	index = appuifw.popup_menu(pnts, u'Select default access point:')
+	index = appuifw.popup_menu(pnts, u'Select access point:')
 	if index is not None:
 		try:
 			socket.set_default_access_point(pnts[index])
@@ -430,7 +456,10 @@ menu_list = [
 					(u'With your camera', add_pic_photocamera))
 				),
 				(u'Add text', add_text_new if touch else send_message),
-				(u"Settings", settings),
+				(u'Settings', 
+					((u'Login', settings),
+					(u'Check for updates', verupdate))
+				),
 				(u"About", about)
 			]
 appuifw.app.menu = menu_list
