@@ -16,7 +16,7 @@ plurk_password = 'None'
 
 limg = None
 limg_path = u''
-touch = True if appuifw.touch_enabled() else False # Increase code efficiency
+touch = appuifw.touch_enabled()
 
 #Background
 # path = os.getcwd() + '\\'
@@ -25,13 +25,13 @@ if not touch:
 	path = u"c:\\data\python\\"
 	appuifw.app.screen = 'normal' #Screen size(large)
 	bgimage = Image.open(path + "bg.png") #Image path should be like C:\\data\Images\\test.jpg
-	appuifw.app.title = u'Plurk App'
+	appuifw.app.title = u'PluPic'
 else:
 	path = u"e:\\data\python\\"
 	appuifw.app.directional_pad = False
 	appuifw.app.screen = 'normal' #Screen size(normal)
-	bgimage = Image.open(path + "bg_b.jpg") #Image path should be like C:\\data\Images\\test.jpg
-	appuifw.app.title = u'Plurk App'
+	bgimage = Image.open(path + "bg_b.png") #Image path should be like C:\\data\Images\\test.jpg
+	appuifw.app.title = u'PluPic'
 
 def handle_redraw(rect = None):
 	''' rect is a four-element tuple
@@ -41,7 +41,11 @@ def handle_redraw(rect = None):
 		if not touch:
 			canvas.blit(limg, target = (26, 26))
 		else:
-			canvas.blit(limg, target = (20, 22))
+			canvas.blit(limg, target = ((canvas.size[0] - limg.size[0]) / 2, 22))
+			
+			x1, y1 = ( (canvas.size[0] - limg.size[0])/2, 22 )
+			x2, y2 = ( x1 + limg.size[0], y1 + limg.size[1] )
+			canvas.rectangle((x1, y1, x2, y2), outline = 0xcccccc, width = 10)
 
 canvas = appuifw.Canvas(event_callback = None, redraw_callback = handle_redraw)
 appuifw.app.body = canvas
@@ -101,60 +105,168 @@ def about():
 	
 def quit():
 	app_lock.signal()
-
-def post_to_plurk():
-	# import urllib2
-	'''from urllib2 import build_opener
-	from urllib2 import HTTPError
-	from urllib2 import HTTPCookieProcessor
-	from cookielib import CookieJar'''
 	
-	# Not needed in the sis package
-	'''from sys import path as sysPath
-	sysPath.append(path + 'lib')
-	import FileUploader, simplejson'''
+st_connected = False
+def select_access_point():
+	''' Return True if selected, False otherwise '''
+	import btsocket, socket
+	global st_connected
 	
-	global plurk_login, plurk_password
-	plurk_api_key = '5cZQnLGHJMmPRYsADiOq1x1wMuSkmocE'
-	get_api_url = lambda x: 'http://www.plurk.com/API%s' % x
+	pnts = []
+	points = btsocket.access_points()
+	for i in points:
+		pnts.append(i['name'])
 	
-	cookies = CookieJar()
-	opener = build_opener(HTTPCookieProcessor(cookies), FileUploader.MultipartPostHandler)
-	
-	try:
-		fp = opener.open(get_api_url('/Users/login'),
-							{'username': plurk_login,
-							'password': plurk_password,
-							'api_key': plurk_api_key})
-		fp.read()
-	except HTTPError, e:
-		print e.read()
-		appuifw.note(u"Logon error", "error")
-	
-	if limg is not None:
+	index = appuifw.popup_menu(pnts, u'Select default access point:')
+	if index is not None:
 		try:
-			fp = opener.open(get_api_url('/Timeline/uploadPicture'),
-								{'api_key' : plurk_api_key,
-								'image' : open(limg_path, "rb")})
+			socket.set_default_access_point(pnts[index])
+			st_connected = True
+			return True
+		except:
+			pass
+	
+	return False
+
+from threading import Thread
+class PlurkAPI:
+	def __init__(self, api_key):
+		self.get_api_url = lambda x: 'http://www.plurk.com/API%s' % x
+		self.opener = build_opener(HTTPCookieProcessor(CookieJar()), FileUploader.MultipartPostHandler)
+		self.api_key = api_key
+	
+	def login(self, login, password, data = True):
+		try:
+			fp = self.opener.open(self.get_api_url('/Users/login'),
+								{'username': login,
+								'password': password,
+								'api_key': self.api_key,
+								'no_data': '1' if not data else ''})
+			print fp.read()
 		except HTTPError, e:
 			print e.read()
-			appuifw.note(u"Pic post error", "error")
 			
-		jsonobj = simplejson.loads(fp.read()) # Parse json to the dictionary object
+	def update(self, text, qualifier = u':'):
+		try:
+			fp = self.opener.open(self.get_api_url('/Timeline/plurkAdd'),
+								{'content': text.encode('utf-8'),
+								'qualifier': qualifier,
+								'api_key': self.api_key,
+								"lang": "ru" })
+			
+			print fp.read()
+			return True
+		except HTTPError, e:
+			print e.read()
 	
-	try: plText = ' '.join([jsonobj['full'], plurk_text])
-	except NameError: plText = plurk_text
+	def upload_image(self, imgpath):
+		try:
+			fp = self.opener.open(self.get_api_url('/Timeline/uploadPicture'),
+								{'api_key' : self.api_key,
+								'image' : open(imgpath, "rb")})
+			
+			return simplejson.loads(fp.read())['full']
+		except HTTPError, e:
+			print e.read()
+			
+class ThreadAPI(Thread):
+	def __init__(self):
+		Thread.__init__(self)
+		
+		self.functions = []
+		self.args = ()
+		
+		self.returned_val = None
+		
+	def run(self):
+		for count, f in enumerate(self.functions):
+			self.returned_val = apply(f, self.args[count])
+			
+		return self.returned_val
 	
-	try:
-		fp = opener.open(get_api_url('/Timeline/plurkAdd'),
-							{'content': plText.encode('utf-8'),
-							'qualifier': qualifier if qualifier is not u'' else u':',
-							'api_key': plurk_api_key,
-							"lang": "ru" })
-		appuifw.note(u"Posted!", "conf")
-	except HTTPError, e:
-		print e.read()
-		appuifw.note(u"Plurk with pic posting error", "error")
+	def init_targets(self, functions, args = ()):
+		for func in functions:
+			self.functions.append(func)
+		
+		try:
+			self.args = args
+		except:
+			print 'error: can not init this'
+			
+class ProgressBar:
+	def __init__(self, canvas, sprite_path = 'e:\\data\\python\\sprite.png', frame_size = (117, 40)):
+		self.canvas = canvas
+		self.sprite = Image.open(sprite_path)
+		self.layer = Image.new(self.canvas.size)
+		
+		self.curr_frame = 0
+		self.frame_w = frame_size[0]
+		self.frame_h = frame_size[1]
+		
+		self.loader_pos = ( (self.layer.size[0] - self.frame_w) / 2, (self.layer.size[1] - self.frame_h) / 2)
+		self.busy = True
+		
+		self.is_toush = appuifw.touch_enabled()
+			
+	def draw_frame(self, frame_number):
+		self.layer.blit(self.sprite, target = self.loader_pos, source = ((frame_number * self.frame_w, 0),
+																		((frame_number + 1) * self.frame_w, self.frame_h)))
+		
+		if self.is_toush:
+			self.canvas.begin_redraw()
+			self.canvas.blit(self.layer)
+			self.canvas.end_redraw()
+		else:
+			self.canvas.blit(self.layer)
+
+def post_to_plurk():
+	if not st_connected:
+		while not select_access_point():
+			pass
+	
+	progress_bar = ProgressBar(canvas, path + 'sprite.png')
+	thread_api = ThreadAPI()
+	plurk_api = PlurkAPI('5cZQnLGHJMmPRYsADiOq1x1wMuSkmocE')
+	
+	if limg is not None:		
+		upload_thread = ThreadAPI()
+		
+		upload_thread.init_targets([plurk_api.login, plurk_api.upload_image], args = ((plurk_login, plurk_password, False), (limg_path, )))
+		upload_thread.start()
+		
+		iter = 0
+		while upload_thread.isAlive():
+			progress_bar.draw_frame(iter)
+			
+			if iter == 2:
+				iter = 0
+			else:
+				iter += 1
+				
+			e32.ao_sleep(0.4)
+		
+		global plurk_text
+		plurk_text = ' '.join([upload_thread.returned_val, plurk_text])
+	
+	thread_api.init_targets([plurk_api.login, plurk_api.update], args = ((plurk_login, plurk_password, False), (plurk_text, )))
+	thread_api.start()
+	
+	iter = 0
+	while thread_api.isAlive():
+		progress_bar.draw_frame(iter)
+		
+		if iter == 2:
+			iter = 0
+		else:
+			iter += 1
+			
+		e32.ao_sleep(0.4)
+			
+	handle_redraw()
+	if thread_api.returned_val:
+		appuifw.note(u'Posted!', 'conf')
+	else:
+		appuifw.note(u'Something goes wrong...', 'error')
 
 def add_pic_filesystem():
 	global limg, limg_path
@@ -170,7 +282,7 @@ def add_pic_filesystem():
 		if os.path.splitext(x)[1] in ('.jpg', '.png', '.gif'):
 			images.append(x)
 	
-	index = appuifw.popup_menu(images)
+	index = appuifw.selection_list(images)
 	if index is None:
 		return
 	
@@ -179,10 +291,10 @@ def add_pic_filesystem():
 	
 	# Resize image
 	if limg.size[0] > 360:
-		if touch==False:
+		if not touch:
 			limg = limg.resize((188, 143), callback = None, keepaspect = 1)
 		else:
-			limg = limg.resize((310, 233), callback = None, keepaspect = 1)
+			limg = limg.resize((320, 240), callback = None, keepaspect = 1)
 	# Optimize UI redraw
 	canvas.begin_redraw()
 	handle_redraw()
@@ -240,27 +352,6 @@ def add_text_new():
 	appuifw.app.menu = [(u'Save', save_plurk_text)] #, (u'Add qualifier', add_qualifier)]
 ''' end '''
 
-def select_access_point():
-	''' Return True if selected, False otherwise '''
-	import btsocket, socket
-	
-	pnts = []
-	points = btsocket.access_points()
-	for i in points:
-		pnts.append(i['name'])
-	
-	index = appuifw.popup_menu(pnts, u'Select default access point:')
-	if index is not None:
-		try:
-			socket.set_default_access_point(pnts[index])
-			return True
-		except:
-			pass
-	
-	return False
-
-while not select_access_point():
-	pass
 if os.path.exists(path+"settings.db.e32dbm"):
 	read()
 else:
@@ -278,7 +369,7 @@ def add_pic_photocamera():
 			canvas.begin_redraw()
 			
 			canvas.blit(bgimage)
-			canvas.blit(im, target = (20, 22))
+			canvas.blit(im, target = ((canvas.size[0] - im.size[0]) / 2, 22))
 			
 			canvas.end_redraw()
 	def save_picture(pict):
@@ -298,14 +389,15 @@ def add_pic_photocamera():
 				filename=day+mon+str(time.localtime()[0])+'('+str(i)+')''.jpg'
 		else:
 			filename=day+mon+str(time.localtime()[0])+'.jpg'
-		pict.save(images_dir+filename, quality=90)
+		pict.save(images_dir+filename, quality=100)
 		
 		camquit()
 		
 		limg = Image.open(images_dir+filename)		
 		if canvas.size[0] == 360:
 			limg = limg.resize((320, 240), callback = None, keepaspect = 1)
-			canvas.blit(limg, target = (20, 22))
+			#canvas.blit(limg, target = ((canvas.size[0] - limg.size[0]) / 2, 22))
+			handle_redraw()
 		else:
 			canvas.blit(bgimage)
 			limg = limg.resize((188, 143), callback = None, keepaspect = 1)
