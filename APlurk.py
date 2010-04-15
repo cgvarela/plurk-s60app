@@ -101,8 +101,21 @@ def verupdate():
 #Menu functions
 def send_message():
 	global plurk_text
-	pmessage = appuifw.query(u"Type message to plurk:", "text")
+	pmessage = appuifw.query(u"Type message to plurk:", "text",plurk_text)
 	plurk_text = pmessage if pmessage is not None else ''
+
+def delpic():
+	global limg_path, limg
+	data = appuifw.query(u"Delete current picture?" , "query")
+	if data==True:
+		if os.path.exists(limg_path):
+			os.remove(limg_path)
+			limg=None
+			handle_redraw
+
+
+
+
 
 def settings():
 	global plurk_login, plurk_password
@@ -335,8 +348,7 @@ def add_pic_filesystem():
 txt = appuifw.Text()
 plurk_text = u''
 qualifier = u''
-qualifiers = [u'loves', u'likes', u'shares', u'gives', u'hates', u'wants', u'has', u'will', u'asks', u'wishes',
-            	u'was', u'feels', u'thinks', u'says', u'is', u':', u'freestyle', u'hopes', u'needs', u'wonders']
+
 def save_plurk_text():
 	global plurk_text
 	# Has some issues if qualifiers was removed manually by user
@@ -350,27 +362,6 @@ def save_plurk_text():
 	else:
 		appuifw.note(u'Your text is longer than 140 symbols', 'error')
 
-def add_qualifier():
-	global qualifiers, qualifier, txt
-	index = appuifw.popup_menu(qualifiers)
-	
-	if index is not None:
-		if qualifier is not u'':
-			# Delete old qualifier and 2 spaces around + 1 space between qualifier and main plurk text
-			txt.delete(0, len(qualifier) + 3)
-		
-		qualifier = qualifiers[index]
-		txt.set_pos(0)
-		txt.color = 0xffffff
-		txt.highlight_color = 0x994215
-		txt.style = appuifw.HIGHLIGHT_STANDARD
-		txt.add(qualifier)
-		
-		txt.color = 0x000000
-		txt.highlight_color = 0xffffff
-		txt.style = appuifw.HIGHLIGHT_STANDARD
-		txt.add(u' ')
-	
 def add_text_new():
 	global txt
 	appuifw.app.body = txt
@@ -404,10 +395,10 @@ def add_pic_photocamera():
 		day=str(time.localtime()[2])
 		mon=str(time.localtime()[1])
 		i=1
-		if day<10:
+		if int(day)<10:
 			day='0'+day
-		if mon<10:
-			mon='0'+mon
+		if int(mon)<10:
+			mon=u'0'+mon
 		if os.path.exists(images_dir+day+mon+str(time.localtime()[0])+'.jpg'):
 			while os.path.exists(images_dir+day+mon+str(time.localtime()[0])+'('+str(i)+')''.jpg'):
 				i=i+1
@@ -415,7 +406,7 @@ def add_pic_photocamera():
 				filename=day+mon+str(time.localtime()[0])+'('+str(i)+')''.jpg'
 		else:
 			filename=day+mon+str(time.localtime()[0])+'.jpg'
-		pict.save(images_dir+filename, quality=100)
+		pict.save(images_dir+filename, quality=75)
 		
 		camquit()
 		
@@ -451,9 +442,10 @@ def add_pic_photocamera():
 #Menu list
 menu_list = [
 				(u"Plurk!", post_to_plurk),
-				(u'Add picture',
-					((u'From Gallery', add_pic_filesystem),
-					(u'With your camera', add_pic_photocamera))
+				(u'Picture',
+					((u'Add from gallery', add_pic_filesystem),
+					(u'Take a photo', add_pic_photocamera),
+					(u'Delete current image', delpic))
 				),
 				(u'Add text', add_text_new if touch else send_message),
 				(u'Settings', 
