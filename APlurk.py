@@ -3,7 +3,7 @@
 from graphics import *
 from e32dbm import open as db_open
 
-from urllib2 import build_opener, HTTPError, HTTPCookieProcessor
+from urllib2 import build_opener, HTTPError, HTTPCookieProcessor, urlopen
 from cookielib import CookieJar
 
 from datetime import date
@@ -17,7 +17,7 @@ import FileUploader, simplejson
 
 plurk_login = u'Plurk User'
 plurk_password = 'None'
-version = u'0_1_1011'
+version = u'0_1_1015'
 
 limg = None
 limg_path = u''
@@ -72,7 +72,6 @@ def write():
 		db = db_open(path+"settings.db","c")
 		db[u"login"] = plurk_login
 		db[u"password"] = plurk_password
-		db[u"version"] = version
 		db.close()
 		return True
 	
@@ -83,19 +82,16 @@ def read():
 	db = db_open(path+"settings.db","r")
 	plurk_login = db[u"login"]
 	plurk_password = db[u"password"]
-	version = db[u"version"]
 	db.close()
 
 def verupdate():
 	if not st_connected:
 		while not select_access_point():
 			pass
-	
-	import urllib
 	file = "ver.txt"
 	server = "http://plurk-s60app.googlecode.com/svn/trunk/"
 	url= "http://plurk-s60app.googlecode.com/files/plupic_v"
-	update = urllib.urlopen(server + file).read()
+	update = urlopen(server + file).read()
 	
 	if update == version:
 		appuifw.note(u"You are using the latest version","info")
@@ -122,7 +118,6 @@ def delpic():
 			handle_redraw()
 def clear(confirmation = True):
 	global limg, limg_path
-	
 	if confirmation:
 		if appuifw.query(u"Clear current picture?" , "query"):
 			limg = None
@@ -196,7 +191,7 @@ class PlurkAPI:
 								'password': password,
 								'api_key': self.api_key,
 								'no_data': '1' if not data else ''})
-			print fp.read()
+			#print fp.read()
 		except HTTPError, e:
 			print e.read()
 			
@@ -208,7 +203,7 @@ class PlurkAPI:
 								'api_key': self.api_key,
 								"lang": "ru" })
 			
-			print simplejson.loads(fp.read())['content']
+			#print simplejson.loads(fp.read())['content']
 			return True
 		except HTTPError, e:
 			print e.read()
@@ -326,23 +321,28 @@ def post_to_plurk():
 	else:
 		appuifw.note(u'Something goes wrong...', 'error')
 
+def myComp (x,y):
+    import re
+    def getNum(str): return float(re.findall(r'\d+',str)[0])
+    return cmp(getNum(x),getNum(y))
 def add_pic_filesystem():
 	global limg, limg_path
 	imagedir = u'e:\\images'
-	
 	images = []
+	full_path = []
 	files = map(unicode, os.listdir(imagedir))
 	# save only images
 	for x in files:
 		if os.path.splitext(x)[1] in ('.jpg', '.png', '.gif'):
 			images.append(x)
-	
-	index = appuifw.selection_list(images)
+	full_path = map(lambda x: imagedir + '\\' + x, images)
+	full_path.sort(key=lambda x: os.path.getmtime(x), reverse = True)
+	index = appuifw.selection_list(map(lambda x: os.path.split(x)[1], full_path))
 	if index is None:
 		return
 	
-	limg = Image.open(imagedir + '\\' + images[index])
-	limg_path = imagedir + '\\' + images[index]
+	limg = Image.open(full_path[index])
+	limg_path = full_path[index]
 	
 	# Resize image
 	if limg.size[0] > 360:
