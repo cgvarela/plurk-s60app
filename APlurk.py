@@ -1,14 +1,18 @@
-﻿from graphics import *
-import e32, appuifw, os, key_codes, time
+﻿import e32, appuifw, os, key_codes, time
+
+from graphics import *
 from e32dbm import open as db_open
 
 from urllib2 import build_opener, HTTPError, HTTPCookieProcessor
 from cookielib import CookieJar
 
+from datetime import date
+from itertools import count
+
 # These strings do not influence or on the app cold boot
 # either on the plurk posting.
 from sys import path as sysPath
-sysPath.append('e:\\data\python\\lib')
+sysPath.append('e:\\data\\python\\lib')
 import FileUploader, simplejson
 
 plurk_login = u'Plurk User'
@@ -19,24 +23,35 @@ limg = None
 limg_path = u''
 touch = appuifw.touch_enabled()
 
-#Background
+# special workaround for a proper camera orientation
+if touch:
+	appuifw.app.orientation = 'landscape'
+	import camera
+	appuifw.app.orientation = 'portrait'
+else:
+	import camera
+
 # path = os.getcwd() + '\\'
 # drive_letter = os.getcwd().split("\\")[0]
 if not touch:
 	path = u"c:\\data\python\\"
-	appuifw.app.screen = 'normal' #Screen size(large)
-	bgimage = Image.open(path + "bg.png") #Image path should be like C:\\data\Images\\test.jpg
+	appuifw.app.screen = 'normal'
+	bgimage = Image.open(path + "bg.png")
 	appuifw.app.title = u'PluPic'
 else:
 	path = u"e:\\data\python\\"
 	appuifw.app.directional_pad = False
-	appuifw.app.screen = 'normal' #Screen size(normal)
-	bgimage = Image.open(path + "bg_b.png") #Image path should be like C:\\data\Images\\test.jpg
+	appuifw.app.screen = 'normal'
+	bgimage = Image.open(path + "bg_b.png")
 	appuifw.app.title = u'PluPic'
 
 def handle_redraw(rect = None):
 	''' rect is a four-element tuple
 	ex. (0, 0, 360, 487) '''
+	if rect is not None:
+		if rect[2] > 360:
+			return
+	
 	canvas.blit(bgimage)
 	if limg is not None:
 		if not touch:
@@ -51,13 +66,10 @@ def handle_redraw(rect = None):
 canvas = appuifw.Canvas(event_callback = None, redraw_callback = handle_redraw)
 appuifw.app.body = canvas
 
-#Work with file
-def write():  #define the write function to write in a database
-	# import e32dbm
-	# from e32dbm import open as db_open
+def write():
 	global plurk_login, plurk_password
 	if plurk_login and plurk_password is not None:
-		db = db_open(path+"settings.db","c") #open the file
+		db = db_open(path+"settings.db","c")
 		db[u"login"] = plurk_login
 		db[u"password"] = plurk_password
 		db[u"version"] = version
@@ -66,56 +78,60 @@ def write():  #define the write function to write in a database
 	
 	return False
 
-def read():  #define a read function to read a database
-	# import e32dbm
-	# from e32dbm import open as db_open
+def read():
 	global plurk_login, plurk_password
-	db = db_open(path+"settings.db","r") #open a file
-	plurk_login = db[u"login"]  #read it using the dictionary concept. 
+	db = db_open(path+"settings.db","r")
+	plurk_login = db[u"login"]
 	plurk_password = db[u"password"]
 	version = db[u"version"]
 	db.close()
 
-
-def verupdate(): 
-	global version
+def verupdate():
 	if not st_connected:
 		while not select_access_point():
 			pass
+	
 	import urllib
 	file = "ver.txt"
 	server = "http://plurk-s60app.googlecode.com/svn/trunk/"
 	url= "http://plurk-s60app.googlecode.com/files/plupic_v"
 	update = urllib.urlopen(server + file).read()
 	
-	#Path  of the Python Script file to update 
-	if update==version:
+	if update == version:
 		appuifw.note(u"You are using the latest version","info")
 	else:
 		data = appuifw.query(u"Update from\nv. " +version+" to\nv. "+update + u" ?" , "query")
-		if data==True:
-			internal_url = url+ update + ".sis"
+		if data:
+			internal_url = url + update + ".sis"
 			b = 'BrowserNG.exe'
 			e32.start_exe(b, ' "%s"' %internal_url)
-			
-#Menu functions
+
 def send_message():
 	global plurk_text
-	pmessage = appuifw.query(u"Type message to plurk:", "text",plurk_text)
+	pmessage = appuifw.query(u"Type message to plurk:", "text", plurk_text)
 	plurk_text = pmessage if pmessage is not None else ''
 
 def delpic():
 	global limg_path, limg
 	data = appuifw.query(u"Delete current picture?" , "query")
-	if data==True:
+	if data:
 		if os.path.exists(limg_path):
 			os.remove(limg_path)
-			limg=None
-			handle_redraw
-
-
-
-
+			limg = None
+			limg_path = u''
+			handle_redraw()
+def clear(confirmation = True):
+	global limg, limg_path
+	
+	if confirmation:
+		if appuifw.query(u"Clear current picture?" , "query"):
+			limg = None
+			limg_path = u''
+			handle_redraw()
+	else:
+		limg = None
+		limg_path = u''
+		handle_redraw()
 
 def settings():
 	global plurk_login, plurk_password
@@ -139,7 +155,6 @@ def settings():
 		appuifw.note(u"Saved!", "conf")
 
 def about():
-	#update()
 	appuifw.query(u"Created by \nItex & xolvo\nv. "+version, "query")
 	
 def quit():
@@ -193,7 +208,7 @@ class PlurkAPI:
 								'api_key': self.api_key,
 								"lang": "ru" })
 			
-			print fp.read()
+			print simplejson.loads(fp.read())['content']
 			return True
 		except HTTPError, e:
 			print e.read()
@@ -207,7 +222,7 @@ class PlurkAPI:
 			return simplejson.loads(fp.read())['full']
 		except HTTPError, e:
 			print e.read()
-			
+	
 class ThreadAPI(Thread):
 	def __init__(self):
 		Thread.__init__(self)
@@ -267,6 +282,8 @@ def post_to_plurk():
 	thread_api = ThreadAPI()
 	plurk_api = PlurkAPI('5cZQnLGHJMmPRYsADiOq1x1wMuSkmocE')
 	
+	global plurk_text
+	
 	if limg is not None:		
 		upload_thread = ThreadAPI()
 		
@@ -284,7 +301,6 @@ def post_to_plurk():
 				
 			e32.ao_sleep(0.4)
 		
-		global plurk_text
 		plurk_text = ' '.join([upload_thread.returned_val, plurk_text])
 	
 	thread_api.init_targets([plurk_api.login, plurk_api.update], args = ((plurk_login, plurk_password, False), (plurk_text, )))
@@ -304,17 +320,17 @@ def post_to_plurk():
 	handle_redraw()
 	if thread_api.returned_val:
 		appuifw.note(u'Posted!', 'conf')
+		
+		plurk_text = u''
+		clear(confirmation = False)
 	else:
 		appuifw.note(u'Something goes wrong...', 'error')
 
 def add_pic_filesystem():
 	global limg, limg_path
-	if e32.in_emulator():
-		imagedir = u'c:\\data\\images'
-	else:
-		imagedir = u'e:\\images'
+	imagedir = u'e:\\images'
 	
-	images = list()
+	images = []
 	files = map(unicode, os.listdir(imagedir))
 	# save only images
 	for x in files:
@@ -345,28 +361,23 @@ def add_pic_filesystem():
 	
 
 ''' Text field start functions '''
-txt = appuifw.Text()
 plurk_text = u''
-qualifier = u''
 
 def save_plurk_text():
 	global plurk_text
-	# Has some issues if qualifiers was removed manually by user
-	plurk_text = appuifw.app.body.get()[len(qualifier):].strip()
+	plurk_text = appuifw.app.body.get()
 	
-	if len(plurk_text) - len(qualifier) <= 140:
-		# appuifw.note(u'Saved\n' + plurk_text, 'conf')
+	if len(plurk_text) <= 140:
 		# Return an old menu back
 		appuifw.app.body = canvas
 		appuifw.app.menu = menu_list
 	else:
 		appuifw.note(u'Your text is longer than 140 symbols', 'error')
-
+	
 def add_text_new():
-	global txt
-	appuifw.app.body = txt
+	appuifw.app.body = txt = appuifw.Text()
 	txt.color = 0x000000
-	appuifw.app.menu = [(u'Save', save_plurk_text)] #, (u'Add qualifier', add_qualifier)]
+	appuifw.app.menu = [(u'Save', save_plurk_text)]
 ''' end '''
 
 if os.path.exists(path+"settings.db.e32dbm"):
@@ -375,10 +386,86 @@ else:
 	settings()
 
 #camera
+class TouchCamera:
+	def __init__(self, canvas, save_path = 'e:\\images\\'):
+		self.canvas = canvas
+		self.path = save_path
+		
+		self.mod = 'auto'
+		
+		self.toolbar = None #Image.new((160, 360))
+		
+		appuifw.app.screen = 'full'
+		appuifw.app.orientation = 'landscape'
+		
+	def __filename_gen(self):
+		today = date.today().strftime('%d%m%Y')
+
+		for i in count(1):
+			path_n = self.path + today + '%(#)03d' % {'#': i} + '.jpg'
+			
+			if not os.path.exists(path_n):
+				return path_n
+		
+	def start_vf(self, frame):
+		self.canvas.begin_redraw()
+		
+		canvas.blit(frame)
+		self.__redraw_toolbar()
+		
+		self.canvas.end_redraw()
+		
+	def save(self, pos = (0, 0)):
+		self.canvas.bind(key_codes.EButton1Down, None)
+		img = camera.take_photo(mode = 'JPEG_Exif', flash = self.mod, size = (640, 480))
+		
+		save_p = self.__filename_gen()
+		f = open(save_p, 'wb')
+		f.write(img)
+		f.close()
+		
+		#img = camera.take_photo(mode = 'RGB', flash = self.mod, size = (640, 480))
+		#img.save(self.path + 'test.jpg', quality = 100, compression = 'no')
+		
+		self.close()
+		
+		global limg, limg_path
+		limg_path = save_p
+		limg = Image.open(save_p)
+		limg = limg.resize((320, 240), callback = None, keepaspect = 1)
+		handle_redraw()
+	
+	def close(self, pos = (0, 0)):
+		self.canvas.bind(key_codes.EButton1Down, None)
+		
+		appuifw.app.screen = 'normal'
+		appuifw.app.orientation = 'portrait'
+		
+		camera.stop_finder()
+		camera.release()
+		
+	def flash_mod(self, pos = (0, 0)):
+		flash_mods_items = map(unicode, camera.flash_modes())
+		item = appuifw.popup_menu(flash_mods_items)
+		
+		if item is not None:
+			self.mod = flash_mods_items[item]
+	
+	def make_toolbar(self, callable_items, toolbar_img_path = u'e:\\data\\python\\camera_toolbar.png'):
+		'''
+		@param callable_items: is a list of dictionaries [{'callback': function, 'area': ((0, 0), (10, 10))}, ...]
+		'''
+		self.toolbar = Image.open(toolbar_img_path)		
+		self.canvas.blit(self.toolbar, target = (480, 0))
+		
+		for item in callable_items:
+			self.canvas.bind(key_codes.EButton1Down, item['callback'], item['area'])
+			
+	def __redraw_toolbar(self):
+		self.canvas.blit(self.toolbar, target = (480, 0))
+
 images_dir="e:\\images\\" 
 def add_pic_photocamera():
-	import  camera
-	global touch
 	def vf(im):
 		if not touch:
 			canvas.blit(im)
@@ -395,10 +482,10 @@ def add_pic_photocamera():
 		day=str(time.localtime()[2])
 		mon=str(time.localtime()[1])
 		i=1
-		if int(day)<10:
-			day='0'+day
-		if int(mon)<10:
-			mon=u'0'+mon
+		if int(day) < 10:
+			day = '0' + day
+		if int(mon) < 10:
+			mon = u'0' + mon
 		if os.path.exists(images_dir+day+mon+str(time.localtime()[0])+'.jpg'):
 			while os.path.exists(images_dir+day+mon+str(time.localtime()[0])+'('+str(i)+')''.jpg'):
 				i=i+1
@@ -419,33 +506,41 @@ def add_pic_photocamera():
 			canvas.blit(bgimage)
 			limg = limg.resize((188, 143), callback = None, keepaspect = 1)
 			canvas.blit(limg, target = (26, 26))
-
-		
 		limg_path=images_dir+filename
 	def take_picture(pos = (0, 0)): # For touch events support
-		pic = camera.take_photo(size = (640, 480)) 
+		pic = camera.take_photo(size = (640, 480))
 		save_picture(pic)
-	def camquit():		
+	def camquit():
 		camera.stop_finder()
 		camera.release()
 		# get main menu back
 		appuifw.app.menu = menu_list
 		# clean all bindings
 		canvas.bind(key_codes.EKeySelect, None)
-		canvas.bind(key_codes.EButton1Down, None)
 	
-	camera.start_finder(vf, size=(320, 240))
-	canvas.bind(key_codes.EKeySelect, take_picture)
-	canvas.bind(key_codes.EButton1Down, take_picture) # ignored if there was no touch support
-	appuifw.app.menu = [(u'Take picture', take_picture), (u'Cancel', camquit)]
+	if touch:
+		cam = TouchCamera(canvas)
+		camera.start_finder(cam.start_vf, size = (503, 360))
+		
+		callbacks =[{'callback': cam.close, 'area': ((480, 1), (640, 71))},
+					{'callback': cam.save, 'area': ((480, 73), (640, 143))},
+					{'callback': cam.flash_mod, 'area': ((480, 145), (640, 215))}]
+		
+		cam.make_toolbar(callbacks)
+	else:
+		camera.start_finder(vf, size=(320, 240))
+		canvas.bind(key_codes.EKeySelect, take_picture)
+		
+		appuifw.app.menu = [(u'Take picture', take_picture), (u'Cancel', camquit)]
 
 #Menu list
 menu_list = [
 				(u"Plurk!", post_to_plurk),
 				(u'Picture',
-					((u'Add from gallery', add_pic_filesystem),
-					(u'Take a photo', add_pic_photocamera),
-					(u'Delete current image', delpic))
+					((u'From Gallery', add_pic_filesystem),
+					(u'From Camera', add_pic_photocamera),
+					(u'Clear', clear),
+					(u'Delete', delpic))
 				),
 				(u'Add text', add_text_new if touch else send_message),
 				(u'Settings', 
@@ -456,6 +551,6 @@ menu_list = [
 			]
 appuifw.app.menu = menu_list
 
-appuifw.app.exit_key_handler = quit #exit
-app_lock = e32.Ao_lock() #Exit
-app_lock.wait() #prevent the application from closing before the user tells it to
+appuifw.app.exit_key_handler = quit
+app_lock = e32.Ao_lock()
+app_lock.wait()
